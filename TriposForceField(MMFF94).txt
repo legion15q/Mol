@@ -1,0 +1,17 @@
+C.1=Csp1
+C.2=Csp2
+C.3=Csp3
+C.ar=Csp2
+C.cat=C+
+N.3=Nsp3
+N.2=Nsp2
+N.1=Nsp1
+N.ar=N
+N.am=N
+N.pl3=Nsp3
+N.4=Nsp3
+O.3=Osp3
+O.2=Osp2
+O.co2=Osp3
+O.t3p=Osp3
+ 
