@@ -1,14 +1,14 @@
 # чтобы разделить на блоки
+import numpy
+
 block_tokens = ('@<TRIPOS>ATOM', '@<TRIPOS>BOND', '@<TRIPOS>SUBSTRUCTURE')
 
-
 atom_tokens = ('atom_id', 'atom_name', 'x', 'y', 'z', 'atom_type', 'subst_id', 'subst_name', 'charge')
-
 bond_tokens = ('bond_id', 'origin_atom_id', 'target_atom_id', 'bond_type')
-
 substructure_tokens = ('subst_id', 'subst_name', 'root_atom', 'subst_type', 'dict_type', 'chain')
 
 block_subtokens = (atom_tokens, bond_tokens, substructure_tokens)
+
 
 class MolParser(object):
     def __init__(self, file_name_):
@@ -37,17 +37,30 @@ class MolParser(object):
             lines = (list(filter(lambda x: x != '', lines)))
             for j in lines:
                 elements = j.split('\t')
-                if len(elements) == 1 : elements = j.split(' ')
+                if len(elements) == 1: elements = j.split(' ')
                 line_ = {}
                 for k, v in enumerate(block_subtokens[b_k]):
                     line_[v] = elements[k]
                 block.append(line_)
             Mol2[block_tokens[b_k]] = block
         return Mol2
+
+    @property
+    def atoms(self):
+        return self.Mol2['@<TRIPOS>ATOM']
+
+    @property
+    def bonds(self):
+        return self.Mol2['@<TRIPOS>BOND']
+
+    @property
+    def substruct(self):
+        return self.Mol2['@<TRIPOS>SUBSTRUCTURE']
+
+
 def main():
     obj = MolParser('mol.mol2')
-    for k,v in obj.Mol2.items():
-        print(k,v)
+    print(obj.atoms)
 
 
 # Press the green button in the gutter to run the script.
