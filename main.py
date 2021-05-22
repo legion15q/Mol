@@ -82,6 +82,8 @@ class Coord(object):
 class Energy(object):
     def __init__(self, mol2_):
         self.Mol2 = mol2_
+        self.Angles = {}
+        self.sum_ = 0
 
     def calcBondLength(self):
         for i in range(len(self.Mol2.bonds)):
@@ -109,20 +111,58 @@ class Energy(object):
                 if j[0] == atom_type:
                     self.Mol2.atoms[i].update({'atom_type': j[1]})
 
+    def CalcANgles(self):
+
+        for i in range(len(self.Mol2.bonds)):
+            origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
+            target_atom_id = int(self.Mol2.bonds[i]['target_atom_id'])
+            new_target_atom_id = -1
+            for j in range(len(self.Mol2.bonds)):
+                if j != i:
+                    if int(self.Mol2.bonds[j]['origin_atom_id']) == target_atom_id:
+                        new_target_atom_id = int(self.Mol2.bonds[j]['target_atom_id'])
+                        sum_cur = self.CalcAngle_(origin_atom_id, target_atom_id, new_target_atom_id)
+                        self.sum_ += sum_cur
+            if new_target_atom_id == -1:
+                for j in range(len(self.Mol2.bonds)):
+                    if j != i:
+                        if int(self.Mol2.bonds[j]['target_atom_id']) == target_atom_id:
+                            new_target_atom_id = int(self.Mol2.bonds[j]['origin_atom_id'])
+                            sum_cur = self.CalcAngle_(origin_atom_id, target_atom_id, new_target_atom_id)
+                            self.sum_ += sum_cur
+
+    def CalcAngle_(self, origin_atom_id, target_atom_id, new_target_atom_id):
+        dot_1 = Coord(self.Mol2.atoms[origin_atom_id - 1]['x'], self.Mol2.atoms[origin_atom_id - 1]['y'],
+                      self.Mol2.atoms[origin_atom_id - 1]['z'])
+        dot_2 = Coord(self.Mol2.atoms[target_atom_id - 1]['x'], self.Mol2.atoms[target_atom_id - 1]['y'],
+                      self.Mol2.atoms[target_atom_id - 1]['z'])
+        dot_3 = Coord(self.Mol2.atoms[new_target_atom_id - 1]['x'], self.Mol2.atoms[new_target_atom_id - 1]['y'],
+                      self.Mol2.atoms[new_target_atom_id - 1]['z'])
+        return self.CalcAngle(dot_1, dot_2, dot_3)
+
     def Distance(self, dot_1, dot_2):
         return math.sqrt(
             math.pow(dot_2.x - dot_1.x, 2) + math.pow(dot_2.y - dot_1.y, 2) + math.pow(dot_2.z - dot_1.z, 2))
 
+    def CalcAngle(self, dot_1, dot_2, dot_3):
+        ba = [dot_1.x - dot_2.x, dot_1.y - dot_2.y, dot_1.z - dot_2.z]
+        bc = [dot_1.x - dot_3.x, dot_1.y - dot_3.y, dot_1.z - dot_3.z]
+        cosine_angle = numpy.dot(ba, bc) / (numpy.linalg.norm(ba) * numpy.linalg.norm(bc))
+        angle = numpy.arccos(cosine_angle)
+        pAngle = numpy.degrees(angle)
+        return pAngle
 
 
 def main():
     Mol2 = MolParser('mol.mol2')
 
     E = Energy(Mol2)
-    E.calcBondLength()
+    E.CalcANgles()
     E.ChangeNames()
-    print(Mol2.atoms)
+    print(E.sum_)
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     main()
+
