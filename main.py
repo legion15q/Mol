@@ -1,9 +1,10 @@
-# чтобы разделить на блоки
 import numpy
+from scipy.optimize import minimize
 import math
 from energy import bs_energy, bs_energy_K_r_mean, bs_energy_req_mean, bending_energy, bending_energy_K_q_mean, \
     bending_energy_qeq_mean
 
+# чтобы разделить на блоки
 block_tokens = ('@<TRIPOS>ATOM', '@<TRIPOS>BOND', '@<TRIPOS>SUBSTRUCTURE')
 
 atom_tokens = ('atom_id', 'atom_name', 'x', 'y', 'z', 'atom_type', 'subst_id', 'subst_name', 'charge')
@@ -81,33 +82,37 @@ class Coord(object):
         return self.z
 
 
+def Distance(dot_1, dot_2):
+    return math.sqrt(
+        math.pow(dot_2.x - dot_1.x, 2) + math.pow(dot_2.y - dot_1.y, 2) + math.pow(dot_2.z - dot_1.z, 2))
+
+
+def CalcAngle(dot_1, dot_2, dot_3):
+    a = [dot_1.x, dot_1.y, dot_1.z]
+    b = [dot_2.x, dot_2.y, dot_2.z]
+    c = [dot_3.x, dot_3.y, dot_3.z]
+    ba = [aa - bb for aa, bb in zip(a, b)]
+    bc = [cc - bb for cc, bb in zip(c, b)]
+
+    nba = math.sqrt(sum((x ** 2.0 for x in ba)))
+    ba = [x / nba for x in ba]
+
+    nbc = math.sqrt(sum((x ** 2.0 for x in bc)))
+    bc = [x / nbc for x in bc]
+
+    scale = sum((aa * bb for aa, bb in zip(ba, bc)))
+
+    angle = math.acos(scale)
+    return math.degrees(angle)
+
+
 class Energy(object):
     def __init__(self, mol2_):
         self.Mol2 = mol2_
-        self.map_all_chains_to_angles = []
+        self.ChangeNames()
+        self.unic_chains = []
         self.map_unic_chains_to_angles = []
         self.map_unic_chains_to_r = []
-
-    def calcBondEnergy(self):
-        bse = 0
-        for i in range(len(self.Mol2.bonds)):
-            origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
-            target_atom_id = int(self.Mol2.bonds[i]['target_atom_id'])
-            dot_1 = Coord(self.Mol2.atoms[origin_atom_id - 1]['x'], self.Mol2.atoms[origin_atom_id - 1]['y'],
-                          self.Mol2.atoms[origin_atom_id - 1]['z'])
-            dot_2 = Coord(self.Mol2.atoms[target_atom_id - 1]['x'], self.Mol2.atoms[target_atom_id - 1]['y'],
-                          self.Mol2.atoms[target_atom_id - 1]['z'])
-            r = self.Distance(dot_1, dot_2)
-            self.Mol2.bonds[i]['bond_length'] = r
-            name1 = self.Mol2.atoms[origin_atom_id - 1]['atom_type']
-            name2 = self.Mol2.atoms[target_atom_id - 1]['atom_type']
-            K_r, req = bs_energy_K_r_mean, bs_energy_req_mean
-            if bs_energy.get(tuple((name1, name2))) is not None:
-                coef = bs_energy.get(tuple((name1, name2)))
-                K_r, req = coef['K_r'], coef['req']
-            bse += K_r * (r - req) ** 2
-
-        return bse / 2
 
     def ChangeNames(self):
         with open('TriposForceField(MMFF94).txt', 'r') as f:
@@ -125,7 +130,28 @@ class Energy(object):
                 if j[0] == atom_type:
                     self.Mol2.atoms[i].update({'atom_type': j[1]})
 
-    def CalcANgles(self):
+    def calcBondEnergy(self):
+        bse = 0
+        for i in range(len(self.Mol2.bonds)):
+            origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
+            target_atom_id = int(self.Mol2.bonds[i]['target_atom_id'])
+            dot_1 = Coord(self.Mol2.atoms[origin_atom_id - 1]['x'], self.Mol2.atoms[origin_atom_id - 1]['y'],
+                          self.Mol2.atoms[origin_atom_id - 1]['z'])
+            dot_2 = Coord(self.Mol2.atoms[target_atom_id - 1]['x'], self.Mol2.atoms[target_atom_id - 1]['y'],
+                          self.Mol2.atoms[target_atom_id - 1]['z'])
+            r = Distance(dot_1, dot_2)
+            self.Mol2.bonds[i]['bond_length'] = r
+            name1 = self.Mol2.atoms[origin_atom_id - 1]['atom_type']
+            name2 = self.Mol2.atoms[target_atom_id - 1]['atom_type']
+            K_r, req = bs_energy_K_r_mean, bs_energy_req_mean
+            if bs_energy.get(tuple((name1, name2))) is not None:
+                coef = bs_energy.get(tuple((name1, name2)))
+                K_r, req = coef['K_r'], coef['req']
+            bse += K_r * (r - req) ** 2
+            self.map_unic_chains_to_r.append({(origin_atom_id, target_atom_id): r})
+        return bse / 2
+
+    def CalcAnglesEnergy(self):
         # не забыть углы из таблицы перевести в градусы
         for i in range(len(self.Mol2.bonds)):
             origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
@@ -134,40 +160,40 @@ class Energy(object):
                 if j != i:
                     if int(self.Mol2.bonds[j]['origin_atom_id']) == target_atom_id:
                         new_target_atom_id = int(self.Mol2.bonds[j]['target_atom_id'])
-                        self.map_all_chains_to_angles.append((origin_atom_id, target_atom_id, new_target_atom_id))
+                        self.unic_chains.append((origin_atom_id, target_atom_id, new_target_atom_id))
 
                     if int(self.Mol2.bonds[j]['origin_atom_id']) == origin_atom_id:
                         new_target_atom_id = int(self.Mol2.bonds[j]['target_atom_id'])
-                        self.map_all_chains_to_angles.append((new_target_atom_id, origin_atom_id, target_atom_id))
+                        self.unic_chains.append((new_target_atom_id, origin_atom_id, target_atom_id))
 
             for j in range(len(self.Mol2.bonds)):
                 if j != i:
                     if int(self.Mol2.bonds[j]['target_atom_id']) == target_atom_id:
                         new_target_atom_id = int(self.Mol2.bonds[j]['origin_atom_id'])
-                        self.map_all_chains_to_angles.append((origin_atom_id, target_atom_id, new_target_atom_id))
+                        self.unic_chains.append((origin_atom_id, target_atom_id, new_target_atom_id))
 
-        for i in self.map_all_chains_to_angles:
-            for j in self.map_all_chains_to_angles:
+        for i in self.unic_chains:
+            for j in self.unic_chains:
                 if j != i:
                     if set(j) == set(i):
-                        self.map_all_chains_to_angles.remove(j)
+                        self.unic_chains.remove(j)
 
-        for i in self.map_all_chains_to_angles:
+        for i in self.unic_chains:
             angle = self.CalcAngle_(i[0], i[1], i[2])
             self.map_unic_chains_to_angles.append({i: angle})
 
-        print(self.map_unic_chains_to_angles)
+        # print(self.map_unic_chains_to_angles)
+
         be = 0
         for i in self.map_unic_chains_to_angles:
             name1 = self.Mol2.atoms[list(i.keys())[0][0] - 1]['atom_type']
             name2 = self.Mol2.atoms[list(i.keys())[0][1] - 1]['atom_type']
             name3 = self.Mol2.atoms[list(i.keys())[0][2] - 1]['atom_type']
             K_q, qeq = bending_energy_K_q_mean, bending_energy_qeq_mean
-            print(K_q, qeq)
             if bending_energy.get(tuple((name1, name2, name3))) is not None:
                 coef = bending_energy.get(tuple((name1, name2, name3)))
                 K_q, qeq = coef['K_q'], coef['qeq']
-            print(list(i.keys())[0], '(', name1, name2, name3, ')', K_q, qeq)
+            # print(list(i.keys())[0], '(', name1, name2, name3, ')', K_q, qeq)
 
             be += K_q * (list(i.values())[0] - qeq) ** 2
         return be / 2
@@ -179,39 +205,111 @@ class Energy(object):
                       self.Mol2.atoms[target_atom_id - 1]['z'])
         dot_3 = Coord(self.Mol2.atoms[new_target_atom_id - 1]['x'], self.Mol2.atoms[new_target_atom_id - 1]['y'],
                       self.Mol2.atoms[new_target_atom_id - 1]['z'])
-        return self.CalcAngle(dot_1, dot_2, dot_3)
+        return CalcAngle(dot_1, dot_2, dot_3)
 
-    def Distance(self, dot_1, dot_2):
-        return math.sqrt(
-            math.pow(dot_2.x - dot_1.x, 2) + math.pow(dot_2.y - dot_1.y, 2) + math.pow(dot_2.z - dot_1.z, 2))
 
-    def CalcAngle(self, dot_1, dot_2, dot_3):
-        a = [dot_1.x, dot_1.y, dot_1.z]
-        b = [dot_2.x, dot_2.y, dot_2.z]
-        c = [dot_3.x, dot_3.y, dot_3.z]
-        ba = [aa - bb for aa, bb in zip(a, b)]
-        bc = [cc - bb for cc, bb in zip(c, b)]
+def CalcSumOfBondEnergy(x):
+    file_ = MolParser('mol.mol2')
+    E = Energy(file_)
+    r_lst = x
+    Mol2 = E.Mol2
+    bse = 0
+    for i in range(len(Mol2.bonds)):
+        origin_atom_id = int(Mol2.bonds[i]['origin_atom_id'])
+        target_atom_id = int(Mol2.bonds[i]['target_atom_id'])
+        dot_1 = Coord(Mol2.atoms[origin_atom_id - 1]['x'], Mol2.atoms[origin_atom_id - 1]['y'],
+                      Mol2.atoms[origin_atom_id - 1]['z'])
+        dot_2 = Coord(Mol2.atoms[target_atom_id - 1]['x'], Mol2.atoms[target_atom_id - 1]['y'],
+                      Mol2.atoms[target_atom_id - 1]['z'])
+        r = r_lst[i]
+        name1 = Mol2.atoms[origin_atom_id - 1]['atom_type']
+        name2 = Mol2.atoms[target_atom_id - 1]['atom_type']
+        K_r, req = bs_energy_K_r_mean, bs_energy_req_mean
+        if bs_energy.get(tuple((name1, name2))) is not None:
+            coef = bs_energy.get(tuple((name1, name2)))
+            K_r, req = coef['K_r'], coef['req']
+        bse += K_r * (r - req) ** 2
+    return bse / 2
+    # Должен вернуть скаляр
 
-        nba = math.sqrt(sum((x ** 2.0 for x in ba)))
-        ba = [x / nba for x in ba]
 
-        nbc = math.sqrt(sum((x ** 2.0 for x in bc)))
-        bc = [x / nbc for x in bc]
+def CalcSumOfAngleEnergy(x):
+    file_ = MolParser('mol.mol2')
+    E = Energy(file_)
+    angle_lst = x
+    unic_chains = []
+    map_unic_chains_to_angles = []
+    Mol2 = E.Mol2
 
-        scale = sum((aa * bb for aa, bb in zip(ba, bc)))
+    for i in range(len(Mol2.bonds)):
+        origin_atom_id = int(Mol2.bonds[i]['origin_atom_id'])
+        target_atom_id = int(Mol2.bonds[i]['target_atom_id'])
+        for j in range(len(Mol2.bonds)):
+            if j != i:
+                if int(Mol2.bonds[j]['origin_atom_id']) == target_atom_id:
+                    new_target_atom_id = int(Mol2.bonds[j]['target_atom_id'])
+                    unic_chains.append((origin_atom_id, target_atom_id, new_target_atom_id))
 
-        angle = math.acos(scale)
-        return math.degrees(angle)
+                if int(Mol2.bonds[j]['origin_atom_id']) == origin_atom_id:
+                    new_target_atom_id = int(Mol2.bonds[j]['target_atom_id'])
+                    unic_chains.append((new_target_atom_id, origin_atom_id, target_atom_id))
+
+        for j in range(len(Mol2.bonds)):
+            if j != i:
+                if int(Mol2.bonds[j]['target_atom_id']) == target_atom_id:
+                    new_target_atom_id = int(Mol2.bonds[j]['origin_atom_id'])
+                    unic_chains.append((origin_atom_id, target_atom_id, new_target_atom_id))
+
+    for i in unic_chains:
+        for j in unic_chains:
+            if j != i:
+                if set(j) == set(i):
+                    unic_chains.remove(j)
+
+    for i in range(len(unic_chains)):
+        angle = angle_lst[i]
+        map_unic_chains_to_angles.append({unic_chains[i]: angle})
+
+    # print(self.map_unic_chains_to_angles)
+
+    be = 0
+    for i in map_unic_chains_to_angles:
+        name1 = Mol2.atoms[list(i.keys())[0][0] - 1]['atom_type']
+        name2 = Mol2.atoms[list(i.keys())[0][1] - 1]['atom_type']
+        name3 = Mol2.atoms[list(i.keys())[0][2] - 1]['atom_type']
+        K_q, qeq = bending_energy_K_q_mean, bending_energy_qeq_mean
+        if bending_energy.get(tuple((name1, name2, name3))) is not None:
+            coef = bending_energy.get(tuple((name1, name2, name3)))
+            K_q, qeq = coef['K_q'], coef['qeq']
+        # print(list(i.keys())[0], '(', name1, name2, name3, ')', K_q, qeq)
+
+        be += K_q * (list(i.values())[0] - qeq) ** 2
+    return be / 2
 
 
 def main():
     Mol2 = MolParser('mol.mol2')
-
     E = Energy(Mol2)
-    E.ChangeNames()
     print(E.calcBondEnergy())
-    print(E.CalcANgles())
-
+    print(E.CalcAnglesEnergy())
+    print(E.map_unic_chains_to_angles)
+    n = len(E.map_unic_chains_to_r)
+    res = minimize(lambda x: CalcSumOfBondEnergy(x), x0=[0] * n, method='SLSQP', bounds=[(0, None)] * n)
+    # print(res.x)
+    m = len(E.map_unic_chains_to_angles)
+    res = minimize(lambda x: CalcSumOfAngleEnergy(x), x0=[0] * m, method='SLSQP', bounds=[(0, None)] * m)
+    # print(res.x)
+    res = minimize(
+        lambda x:
+        numpy.sum((
+            CalcSumOfBondEnergy(x[:n]),
+                      CalcSumOfAngleEnergy(x[n:])
+        )),
+        x0=[0.01] * (n + m),
+        method='SLSQP',
+        bounds=[(0., None)] * n + [(0., 180.)] * m
+    )
+    print(res.x)
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
