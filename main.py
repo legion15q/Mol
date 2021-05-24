@@ -2,7 +2,7 @@ import numpy
 from scipy.optimize import minimize
 import math
 from energy import bs_energy, bs_energy_K_r_mean, bs_energy_req_mean, bending_energy, bending_energy_K_q_mean, \
-    bending_energy_qeq_mean
+    bending_energy_qeq_mean, vdw_params
 
 # чтобы разделить на блоки
 block_tokens = ('@<TRIPOS>ATOM', '@<TRIPOS>BOND', '@<TRIPOS>SUBSTRUCTURE')
@@ -12,6 +12,9 @@ bond_tokens = ('bond_id', 'origin_atom_id', 'target_atom_id', 'bond_type')
 substructure_tokens = ('subst_id', 'subst_name', 'root_atom', 'subst_type', 'dict_type', 'chain')
 
 block_subtokens = (atom_tokens, bond_tokens, substructure_tokens)
+
+eps_0 = 8.85418781762e-12
+k_clmb = 1 / (4 * math.pi * eps_0)
 
 
 class MolParser(object):
@@ -209,7 +212,7 @@ class Energy(object):
 
 
 def CalcSumOfBondEnergy(x):
-    file_ = MolParser('mol.mol2')
+    file_ = MolParser('test.mol2')
     E = Energy(file_)
     r_lst = x
     Mol2 = E.Mol2
@@ -234,13 +237,12 @@ def CalcSumOfBondEnergy(x):
 
 
 def CalcSumOfAngleEnergy(x):
-    file_ = MolParser('mol.mol2')
+    file_ = MolParser('test.mol2')
     E = Energy(file_)
     angle_lst = x
     unic_chains = []
     map_unic_chains_to_angles = []
     Mol2 = E.Mol2
-
     for i in range(len(Mol2.bonds)):
         origin_atom_id = int(Mol2.bonds[i]['origin_atom_id'])
         target_atom_id = int(Mol2.bonds[i]['target_atom_id'])
@@ -288,28 +290,30 @@ def CalcSumOfAngleEnergy(x):
 
 
 def main():
-    Mol2 = MolParser('mol.mol2')
+    Mol2 = MolParser('test.mol2')
     E = Energy(Mol2)
     print(E.calcBondEnergy())
     print(E.CalcAnglesEnergy())
     print(E.map_unic_chains_to_angles)
     n = len(E.map_unic_chains_to_r)
-    res = minimize(lambda x: CalcSumOfBondEnergy(x), x0=[0] * n, method='SLSQP', bounds=[(0, None)] * n)
+    res = minimize(lambda x: CalcSumOfBondEnergy(x), x0=numpy.array([0] * n), method='SLSQP', bounds=[(0, None)] * n)
     # print(res.x)
     m = len(E.map_unic_chains_to_angles)
-    res = minimize(lambda x: CalcSumOfAngleEnergy(x), x0=[0] * m, method='SLSQP', bounds=[(0, None)] * m)
+    res = minimize(lambda x: CalcSumOfAngleEnergy(x), x0=numpy.array([0] * m), method='SLSQP', bounds=[(0, None)] * m)
     # print(res.x)
     res = minimize(
         lambda x:
         numpy.sum((
             CalcSumOfBondEnergy(x[:n]),
-                      CalcSumOfAngleEnergy(x[n:])
+            CalcSumOfAngleEnergy(x[n:])
         )),
-        x0=[0.01] * (n + m),
+        x0=numpy.array([0.01] * (n + m)),
         method='SLSQP',
+        tol=1e-10,
         bounds=[(0., None)] * n + [(0., 180.)] * m
     )
     print(res.x)
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
