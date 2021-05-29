@@ -2,7 +2,7 @@ import numpy
 from scipy.optimize import minimize
 import math
 from energy import bs_energy, bs_energy_K_r_mean, bs_energy_req_mean, bending_energy, bending_energy_K_q_mean, \
-    bending_energy_qeq_mean, vdw_params
+    bending_energy_qeq_mean, vdw_params, vdw_params_ek_mean, vdw_params_Rj_mean
 
 # чтобы разделить на блоки
 block_tokens = ('@<TRIPOS>ATOM', '@<TRIPOS>BOND', '@<TRIPOS>SUBSTRUCTURE')
@@ -15,7 +15,7 @@ block_subtokens = (atom_tokens, bond_tokens, substructure_tokens)
 
 eps_0 = 8.85418781762e-12
 k_clmb = 1 / (4 * math.pi * eps_0)
-
+k_clmb = 8.9875517873681764*(10**9)
 
 class MolParser(object):
     def __init__(self, file_name_):
@@ -169,16 +169,44 @@ class Energy(object):
             unic_chains = self.map_unic_long_chains[k]
             k += 1
 
-
-
         print(self.unic_chains)
         for i in self.map_unic_long_chains:
             print(i)
 
+    def calc_vdw_coloubm_energy_energy(self):
+        vdw_coloubm_energy = 0
+        for i in self.map_unic_long_chains:
+            for j in i:
+                dot_1 = Coord(self.Mol2.atoms[j[0] - 1]['x'], self.Mol2.atoms[j[0] - 1]['y'],
+                              self.Mol2.atoms[j[0] - 1]['z'])
+                dot_2 = Coord(self.Mol2.atoms[j[-1] - 1]['x'], self.Mol2.atoms[j[-1] - 1]['y'],
+                              self.Mol2.atoms[j[-1] - 1]['z'])
+                name1 = self.Mol2.atoms[j[0] - 1]['atom_type']
+                name2 = self.Mol2.atoms[j[-1] - 1]['atom_type']
 
-    def calc_coloumb_energy(self):
-        print('s')
+                R_i, e_i = vdw_params_Rj_mean, vdw_params_ek_mean
+                if vdw_params.get(tuple((name1))) is not None:
+                    coef = vdw_params.get(tuple((name1)))
+                    R_i, e_i = coef['R*j'], coef['e_k']
+                R_j, e_j = vdw_params_Rj_mean, vdw_params_ek_mean
+                if vdw_params.get(tuple((name2))) is not None:
+                    coef = vdw_params.get(tuple((name2)))
+                    R_j, e_j = coef['R*j'], coef['e_k']
+                R_ij = R_i + R_j
+                e_ij = math.sqrt(e_i * e_j)
+                A_ij = e_ij * (R_ij**12)
+                B_ij = 2*e_ij*(R_ij**6)
+                R = Distance(dot_1, dot_2)
+                if len(j) == 4:
+                    vdw_coloubm_energy +=  0.5*A_ij/(R**12) - 0.5*B_ij/(R**6) +\
+                                       0.83*float(self.Mol2.atoms[j[0] - 1]['charge']) * float(self.Mol2.atoms[j[-1] - 1][
+                        'charge']) / (R * e_ij)
+                else:
+                    vdw_coloubm_energy +=  A_ij/(R**12) - B_ij/(R**6) +\
+                                       float(self.Mol2.atoms[j[0] - 1]['charge']) * float(self.Mol2.atoms[j[-1] - 1][
+                        'charge']) / (R * e_ij)
 
+        print(vdw_coloubm_energy)
 
     def calcBondEnergy(self):
         bse = 0
@@ -347,6 +375,7 @@ def main():
     print(E.CalcAnglesEnergy())
     print(E.map_unic_chains_to_angles)
     E.calc_all_long_chains()
+    E.calc_vdw_coloubm_energy_energy()
     n = len(E.map_unic_chains_to_r)
     res = minimize(lambda x: CalcSumOfBondEnergy(x), x0=numpy.array([0] * n), method='SLSQP', bounds=[(0, None)] * n)
     # print(res.x)

@@ -13,6 +13,19 @@ def process_energy(data: dict):
     return new_data
 
 
+def Rj_mean(data:dict):
+    Rj_list = list()
+    for el in data['data']:
+        Rj_list.append(el['R*j'])
+    return numpy.mean(Rj_list)
+
+def ek_mean(data:dict):
+    ek_list = list()
+    for el in data['data']:
+        ek_list.append(el['e_k'])
+    return numpy.mean(ek_list)
+
+
 def K_r_mean(data: dict):
     K_r_list = list()
     for el in data['data']:
@@ -644,6 +657,8 @@ bending_energy = process_energy(__bending_energy)
 bs_energy = process_energy(__bs_energy)
 vdw_params = process_energy(__van_der_waals_params)
 
+vdw_params_Rj_mean = Rj_mean(__van_der_waals_params)
+vdw_params_ek_mean = ek_mean(__van_der_waals_params)
 bs_energy_K_r_mean = K_r_mean(__bs_energy)
 bs_energy_req_mean = req_mean(__bs_energy)
 bending_energy_K_q_mean = K_q_mean(__bending_energy)
