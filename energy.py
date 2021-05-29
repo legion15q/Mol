@@ -4,8 +4,6 @@ import numpy
 __bs_energy_bond_sep_regex = re.compile(' |-')
 
 
-
-
 def process_energy(data: dict):
     new_data = dict()
     for el in data["data"]:
@@ -28,6 +26,7 @@ def req_mean(data: dict):
         req_list.append(el['req'])
     return numpy.mean(req_list)
 
+
 def K_q_mean(data: dict):
     K_r_list = list()
     for el in data['data']:
@@ -40,6 +39,7 @@ def qeq_mean(data: dict):
     for el in data['data']:
         req_list.append(el['qeq'])
     return numpy.mean(req_list)
+
 
 __bs_energy = {
     "data": [
@@ -126,7 +126,7 @@ __bs_energy = {
         {"bind": "HS-SH", "K_r": 274.0, "req": 1.336},
         {"bind": "S-S", "K_r": 166.0, "req": 2.038},
         {"bind": "CT-F", "K_r": 367.0, "req": 1.380},
-        #--------------------------------------------
+        # --------------------------------------------
         {"bind": "HW-OW", "K_r": 553.0, "req": 0.9572},
         {"bind": "HW-HW", "K_r": 553.0, "req": 1.5136},
         {"bind": "CA-C", "K_r": 469.0, "req": 1.409},
@@ -406,7 +406,7 @@ __bending_energy = {
         {"bind": "HS-SH-HS", "K_q": 35.0, "qeq": 92.07},
         {"bind": "F -CT-F ", "K_q": 77.0, "qeq": 109.10},
         {"bind": "F -CT-H1", "K_q": 35.0, "qeq": 109.50},
-        #--------------------------------------------
+        # --------------------------------------------
         {"bind": "HW-OW-HW", "K_q": 100.0, "qeq": 104.52},
         {"bind": "OW-HW-HW", "K_q": 0.0, "qeq": 127.74},
         {"bind": "NA-C-CB ", "K_q": 70.0, "qeq": 111.30},
@@ -640,12 +640,9 @@ __van_der_waals_params = {
     ]
 }
 
-
-
 bending_energy = process_energy(__bending_energy)
 bs_energy = process_energy(__bs_energy)
 vdw_params = process_energy(__van_der_waals_params)
-
 
 bs_energy_K_r_mean = K_r_mean(__bs_energy)
 bs_energy_req_mean = req_mean(__bs_energy)

@@ -116,6 +116,7 @@ class Energy(object):
         self.unic_chains = []
         self.map_unic_chains_to_angles = []
         self.map_unic_chains_to_r = []
+        self.map_unic_long_chains = []
 
     def ChangeNames(self):
         with open('TriposForceField(MMFF94).txt', 'r') as f:
@@ -132,6 +133,52 @@ class Energy(object):
             for j in names_map:
                 if j[0] == atom_type:
                     self.Mol2.atoms[i].update({'atom_type': j[1]})
+
+    def calc_all_long_chains(self):
+        bonds_tuples_lst = []
+        for i in range(len(self.Mol2.bonds)):
+            origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
+            target_atom_id = int(self.Mol2.bonds[i]['target_atom_id'])
+            temp_tuple = (origin_atom_id, target_atom_id)
+            bonds_tuples_lst.append(temp_tuple)
+        #   for k in range(len(bonds_tuples_lst)):
+        k = 0
+        temp_lst = [0]
+        unic_chains = self.unic_chains
+        while len(temp_lst) != 0:
+            temp_lst = []
+            for i in range(len(unic_chains)):
+                chain_set = set(unic_chains[i])
+                for j in range(len(bonds_tuples_lst)):
+                    bond_set = set(bonds_tuples_lst[j])
+                    if len(chain_set.intersection(bond_set)) == 1:
+                        if len({unic_chains[i][0]}.intersection(bond_set)) == 1:
+                            temp_lst.append(
+                                tuple(bond_set - {unic_chains[i][0]}) + unic_chains[i])
+                        if len({unic_chains[i][-1]}.intersection(bond_set)) == 1:
+                            temp_lst.append(
+                                unic_chains[i] + tuple(bond_set - {unic_chains[i][-1]}))
+            for i in temp_lst:
+                for j in temp_lst:
+                    if temp_lst.count(j) > 1:
+                        temp_lst.remove(j)
+                    elif i != j:
+                        if set(j) == set(i):
+                            temp_lst.remove(j)
+            self.map_unic_long_chains.append(temp_lst)
+            unic_chains = self.map_unic_long_chains[k]
+            k += 1
+
+
+
+        print(self.unic_chains)
+        for i in self.map_unic_long_chains:
+            print(i)
+
+
+    def calc_coloumb_energy(self):
+        print('s')
+
 
     def calcBondEnergy(self):
         bse = 0
@@ -177,7 +224,9 @@ class Energy(object):
 
         for i in self.unic_chains:
             for j in self.unic_chains:
-                if j != i:
+                if self.unic_chains.count(j) > 1:
+                    self.unic_chains.remove(j)
+                elif i != j:
                     if set(j) == set(i):
                         self.unic_chains.remove(j)
 
@@ -212,7 +261,7 @@ class Energy(object):
 
 
 def CalcSumOfBondEnergy(x):
-    file_ = MolParser('test.mol2')
+    file_ = MolParser('mol.mol2')
     E = Energy(file_)
     r_lst = x
     Mol2 = E.Mol2
@@ -237,7 +286,7 @@ def CalcSumOfBondEnergy(x):
 
 
 def CalcSumOfAngleEnergy(x):
-    file_ = MolParser('test.mol2')
+    file_ = MolParser('mol.mol2')
     E = Energy(file_)
     angle_lst = x
     unic_chains = []
@@ -264,7 +313,9 @@ def CalcSumOfAngleEnergy(x):
 
     for i in unic_chains:
         for j in unic_chains:
-            if j != i:
+            if unic_chains.count(j) > 1:
+                unic_chains.remove(j)
+            elif i != j:
                 if set(j) == set(i):
                     unic_chains.remove(j)
 
@@ -290,11 +341,12 @@ def CalcSumOfAngleEnergy(x):
 
 
 def main():
-    Mol2 = MolParser('test.mol2')
+    Mol2 = MolParser('mol.mol2')
     E = Energy(Mol2)
     print(E.calcBondEnergy())
     print(E.CalcAnglesEnergy())
     print(E.map_unic_chains_to_angles)
+    E.calc_all_long_chains()
     n = len(E.map_unic_chains_to_r)
     res = minimize(lambda x: CalcSumOfBondEnergy(x), x0=numpy.array([0] * n), method='SLSQP', bounds=[(0, None)] * n)
     # print(res.x)
