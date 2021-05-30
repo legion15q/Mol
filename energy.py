@@ -12,6 +12,14 @@ def process_energy(data: dict):
         new_data[key] = el
     return new_data
 
+def process_energy2(data: dict):
+    new_data = dict()
+    for el in data["data"]:
+        key = tuple(__bs_energy_bond_sep_regex.split(el['bind']))
+        del el['bind']
+        new_data[key] = el
+    return new_data
+
 
 def Rj_mean(data:dict):
     Rj_list = list()
@@ -616,7 +624,7 @@ __bending_energy = {
 
 __van_der_waals_params = {
     "data": [
-        {"bind": "H ", "R*j": 0.6000, "e_k": 0.0157},
+        {"bind": "H", "R*j": 0.6000, "e_k": 0.0157},
         {"bind": "HO", "R*j": 0.0000, "e_k": 0.0000},
         {"bind": "HS", "R*j": 0.6000, "e_k": 0.0157},
         {"bind": "HC", "R*j": 1.4870, "e_k": 0.0157},
@@ -634,20 +642,20 @@ __van_der_waals_params = {
         {"bind": "OH", "R*j": 1.7210, "e_k": 0.2104},
         {"bind": "OS", "R*j": 1.6837, "e_k": 0.1700},
         {"bind": "CT", "R*j": 1.9080, "e_k": 0.1094},
-        {"bind": "C ", "R*j": 1.9080, "e_k": 0.0860},
-        {"bind": "N ", "R*j": 1.8240, "e_k": 0.1700},
+        {"bind": "C", "R*j": 1.9080, "e_k": 0.0860},
+        {"bind": "N", "R*j": 1.8240, "e_k": 0.1700},
         {"bind": "N3", "R*j": 1.8240, "e_k": 0.1700},
-        {"bind": "S ", "R*j": 2.0000, "e_k": 0.2500},
+        {"bind": "S", "R*j": 2.0000, "e_k": 0.2500},
         {"bind": "SH", "R*j": 2.0000, "e_k": 0.2500},
-        {"bind": "P ", "R*j": 2.1000, "e_k": 0.2000},
+        {"bind": "P", "R*j": 2.1000, "e_k": 0.2000},
         {"bind": "IM", "R*j": 2.47, "e_k": 0.1},
         {"bind": "Li", "R*j": 1.1370, "e_k": 0.0183},
         {"bind": "IP", "R*j": 1.8680, "e_k": 0.00277},
-        {"bind": "K ", "R*j": 2.6580, "e_k": 0.000328},
+        {"bind": "K", "R*j": 2.6580, "e_k": 0.000328},
         {"bind": "Rb", "R*j": 2.9560, "e_k": 0.00017},
         {"bind": "Cs", "R*j": 3.3950, "e_k": 0.0000806},
-        {"bind": "I ", "R*j": 2.35, "e_k": 0.40},
-        {"bind": "F ", "R*j": 1.75, "e_k": 0.061},
+        {"bind": "I", "R*j": 2.35, "e_k": 0.40},
+        {"bind": "F", "R*j": 1.75, "e_k": 0.061},
         {"bind": "IB", "R*j": 5.0, "e_k": 0.1},
         {"bind": "EP", "R*j": 0.0, "e_k": 0.0},
     ]
@@ -655,7 +663,7 @@ __van_der_waals_params = {
 
 bending_energy = process_energy(__bending_energy)
 bs_energy = process_energy(__bs_energy)
-vdw_params = process_energy(__van_der_waals_params)
+vdw_params = process_energy2(__van_der_waals_params)
 
 vdw_params_Rj_mean = Rj_mean(__van_der_waals_params)
 vdw_params_ek_mean = ek_mean(__van_der_waals_params)
