@@ -110,6 +110,13 @@ def CalcAngle(dot_1, dot_2, dot_3):
     return math.degrees(angle)
 
 
+def foo():
+    foo.counter += 1
+
+
+foo.counter = 0
+
+
 class Energy(object):
     def __init__(self, mol2_):
         self.Mol2 = mol2_
@@ -131,7 +138,7 @@ class Energy(object):
         for i in range(len(self.Mol2.atoms)):
             atom_type = self.Mol2.atoms[i]['atom_type']
             if atom_type.find(' ') != -1:
-                atom_type.remove(' ')
+                ''.join(atom_type.split(' '))
             for j in names_map:
                 if j[0] == atom_type:
                     self.Mol2.atoms[i].update({'atom_type': j[1]})
@@ -248,6 +255,20 @@ class Energy(object):
         self.map_unic_chains_to_r = []
         bse = 0
         ind = 0
+        N = len(self.Mol2.atoms)
+        if x is not None:
+            with open('trajectory.txt', 'a') as f:
+                f.write(str(N) + '\n')
+                f.write(str(foo.counter) + '\n')
+                ind = 0
+                for m in range(N):
+                    atom_id = ind / 3
+                    f.write(str(self.Mol2.atoms[int(atom_id)]['atom_name']) + ' ' + ' '.join(
+                        [str(x[ind + m]) for m in range(0, 3)]) + '\n')
+                    ind += 3
+            f.close()
+            foo()
+
         for i in range(len(self.Mol2.bonds)):
             origin_atom_id = int(self.Mol2.bonds[i]['origin_atom_id'])
             target_atom_id = int(self.Mol2.bonds[i]['target_atom_id'])
@@ -258,7 +279,10 @@ class Energy(object):
             if x is None:
                 r = Distance(dot_1, dot_2)
             else:
-                r = x[ind]
+                or_atom_id = (origin_atom_id - 1) * 3
+                tg_atom_id = (target_atom_id - 1) * 3
+                r = Distance(Coord(x[or_atom_id], x[or_atom_id + 1], x[or_atom_id + 2]),
+                             Coord(x[tg_atom_id], x[tg_atom_id + 1], x[tg_atom_id + 2]))
                 ind += 1
 
             self.Mol2.bonds[i]['bond_length'] = r
@@ -268,8 +292,10 @@ class Energy(object):
             if bs_energy.get(tuple((name1, name2))) is not None:
                 coef = bs_energy.get(tuple((name1, name2)))
                 K_r, req = coef['K_r'], coef['req']
+
             bse += K_r * (r - req) ** 2
             self.map_unic_chains_to_r.append({(origin_atom_id, target_atom_id): r})
+
         return bse / 2
 
     def CalcAnglesEnergy(self, x=None):
@@ -336,21 +362,18 @@ class Energy(object):
                       self.Mol2.atoms[new_target_atom_id - 1]['z'])
         return CalcAngle(dot_1, dot_2, dot_3)
 
-def constraint(E, n,m, x):
-    return numpy.sum((
-            E.calcBondEnergy(x[:n]),
-            E.CalcAnglesEnergy(x[n:(n + m)]),
-            E.calc_vdw_coloubm_energy_energy(x[(n + m):])
-        ))
+
+def constraint(x):
+    return x
 
 
 def main():
-    Mol2 = MolParser('mol.mol2')
+    Mol2 = MolParser('azz.mol2')
     E = Energy(Mol2)
     print(E.calcBondEnergy())
     print(E.CalcAnglesEnergy())
     print(E.calc_vdw_coloubm_energy_energy())
-    n = len(E.map_unic_chains_to_r)
+    n = len(E.Mol2.atoms) * 3
     # res1 = minimize(lambda x: CalcSumOfBondEnergy(x), x0=numpy.array([0] * n), method='SLSQP', bounds=[(0, None)] * n)
     # print(res1.x)
     m = len(E.map_unic_chains_to_angles)
@@ -359,6 +382,15 @@ def main():
     s = len(E.lst_of_unic_chains)
     # res3 = minimize(lambda x: calc_sum_vdw_coloubm_energy_energy(x), x0=numpy.array([0.1] * s), method='SLSQP', bounds=[(0, None)] * s)
     # print(res3.x)
+
+    x0_ = []
+    for i in range(len(E.Mol2.atoms)):
+        x_ = E.Mol2.atoms[i]['x']
+        y_ = E.Mol2.atoms[i]['y']
+        z_ = E.Mol2.atoms[i]['z']
+        x0_.append(x_)
+        x0_.append(y_)
+        x0_.append(z_)
     res = minimize(
         lambda x:
         numpy.sum((
@@ -366,13 +398,13 @@ def main():
             E.CalcAnglesEnergy(x[n:(n + m)]),
             E.calc_vdw_coloubm_energy_energy(x[(n + m):])
         )),
-        x0=numpy.array([5] * (m + n + s)),
+        x0=numpy.array(x0_ + [10] * (m + s)),
 
         method='SLSQP',
 
         options={
             'maxiter': 25,
-            'ftol': 1e-3,
+            'ftol': 1e-2,
         },
 
         bounds=[(0., None)] * n + [(0., 180.)] * m + [(0., None)] * s,
