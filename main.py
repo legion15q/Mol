@@ -3,7 +3,7 @@ from scipy.optimize import minimize, brute
 import math
 from energy import bs_energy, bs_energy_K_r_mean, bs_energy_req_mean, bending_energy, bending_energy_K_q_mean, \
     bending_energy_qeq_mean, vdw_params, vdw_params_ek_mean, vdw_params_Rj_mean
-
+from numdifftools import Jacobian
 # чтобы разделить на блоки
 block_tokens = ('@<TRIPOS>ATOM', '@<TRIPOS>BOND', '@<TRIPOS>SUBSTRUCTURE')
 
@@ -14,8 +14,8 @@ substructure_tokens = ('subst_id', 'subst_name', 'root_atom', 'subst_type', 'dic
 block_subtokens = (atom_tokens, bond_tokens, substructure_tokens)
 
 eps_0 = 8.85418781762e-12
-k_clmb = 1 / (4 * math.pi * eps_0)
-k_clmb = 8.9875517873681764 * (10 ** 9)
+k_clmb = 1
+
 
 
 class MolParser(object):
@@ -107,7 +107,7 @@ def CalcAngle(dot_1, dot_2, dot_3):
     scale = sum((aa * bb for aa, bb in zip(ba, bc)))
 
     angle = math.acos(scale)
-    return math.degrees(angle)
+    return math.radians(angle)
 
 
 def foo():
@@ -240,13 +240,12 @@ class Energy(object):
 
             if len(j) == 4:
                 vdw_coloubm_energy += 0.5 * A_ij / (R ** 12) - 0.5 * B_ij / (R ** 6) + \
-                                      0.83 * k_clmb * (10 ** -9) * float(self.Mol2.atoms[j[0] - 1]['charge']) * float(
+                                      0.83  * float(self.Mol2.atoms[j[0] - 1]['charge']) * float(
                     self.Mol2.atoms[j[-1] - 1][
                         'charge']) / R
             else:
                 vdw_coloubm_energy += A_ij / (R ** 12) - B_ij / (R ** 6) + \
-                                      k_clmb * (10 ** -9) * \
-                                      float(self.Mol2.atoms[j[0] - 1]['charge']) * float(self.Mol2.atoms[j[-1] - 1][
+                                     float(self.Mol2.atoms[j[0] - 1]['charge']) * float(self.Mol2.atoms[j[-1] - 1][
                                                                                              'charge']) / R
 
         return vdw_coloubm_energy
@@ -344,10 +343,10 @@ class Energy(object):
             name1 = self.Mol2.atoms[list(i.keys())[0][0] - 1]['atom_type']
             name2 = self.Mol2.atoms[list(i.keys())[0][1] - 1]['atom_type']
             name3 = self.Mol2.atoms[list(i.keys())[0][2] - 1]['atom_type']
-            K_q, qeq = bending_energy_K_q_mean, bending_energy_qeq_mean
+            K_q, qeq = bending_energy_K_q_mean, math.radians(bending_energy_qeq_mean)
             if bending_energy.get(tuple((name1, name2, name3))) is not None:
                 coef = bending_energy.get(tuple((name1, name2, name3)))
-                K_q, qeq = coef['K_q'], coef['qeq']
+                K_q, qeq = coef['K_q'], math.radians(coef['qeq'])
             # print(list(i.keys())[0], '(', name1, name2, name3, ')', K_q, qeq)
 
             be += K_q * (list(i.values())[0] - qeq) ** 2
@@ -363,12 +362,9 @@ class Energy(object):
         return CalcAngle(dot_1, dot_2, dot_3)
 
 
-def constraint(x):
-    return x
-
 
 def main():
-    Mol2 = MolParser('azz.mol2')
+    Mol2 = MolParser('mol.mol2')
     E = Energy(Mol2)
     print(E.calcBondEnergy())
     print(E.CalcAnglesEnergy())
@@ -401,7 +397,7 @@ def main():
         x0=numpy.array(x0_ + [10] * (m + s)),
 
         method='SLSQP',
-
+        jac = None,
         options={
             'maxiter': 25,
             'ftol': 1e-2,
