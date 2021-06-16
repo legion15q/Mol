@@ -1,0 +1,1 @@
+ a = Ranking('GDB13_Subset-ABCDEFGH.smi', ['O1N=NC2'])
